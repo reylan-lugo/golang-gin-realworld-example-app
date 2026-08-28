@@ -48,6 +48,25 @@ func (c *Client) Middleware() gin.HandlerFunc {
 				},
 			)
 		}
+
+		// A handler that answers 5xx without calling ctx.Error has still
+		// failed, and this codebase reports its failures that way. Without
+		// this the middleware would only ever see panics.
+		//
+		// Neither frames nor a fingerprint are sent. The handler has already
+		// returned, so capturing here would yield this middleware's own stack
+		// rather than the line that failed — and with no frames to mislead
+		// it, logcore groups these on its own terms. Overriding that would
+		// only restate what the message already carries.
+		if len(ctx.Errors) == 0 && ctx.Writer.Status() >= http.StatusInternalServerError {
+			c.Log(SeverityError,
+				fmt.Sprintf("%s %s responded %d", ctx.Request.Method, ctx.FullPath(), ctx.Writer.Status()),
+				LogOptions{
+					Trace:   ctx.GetHeader(traceHeader),
+					Context: requestContext(ctx),
+				},
+			)
+		}
 	}
 }
 

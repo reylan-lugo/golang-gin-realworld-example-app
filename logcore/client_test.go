@@ -32,10 +32,11 @@ func newCapturing(t *testing.T, cfg Config) (*Client, chan []byte) {
 
 func defaultConfig() Config {
 	return Config{
-		Enabled:     true,
-		Service:     "golang-gin-realworld-example-app",
-		Env:         "dev",
-		MinSeverity: SeverityError,
+		Enabled:        true,
+		Service:        "golang-gin-realworld-example-app",
+		Env:            "dev",
+		MinSeverity:    SeverityError,
+		StdLogSeverity: SeverityError,
 	}
 }
 

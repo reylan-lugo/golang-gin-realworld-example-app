@@ -35,6 +35,10 @@ type Config struct {
 	Service     string
 	Env         string
 	MinSeverity string
+	// StdLogSeverity is the severity given to standard-library log lines,
+	// which carry none of their own. Declared rather than guessed from the
+	// text: this codebase logs only failures that way.
+	StdLogSeverity string
 }
 
 // ConfigFromEnv reads the LOGCORE_* variables. The key is a server secret: it
@@ -55,13 +59,18 @@ func ConfigFromEnv() Config {
 	if env == "" {
 		env = "dev"
 	}
+	stdLogSeverity := strings.ToUpper(os.Getenv("LOGCORE_STDLOG_SEVERITY"))
+	if _, ok := severityRank[stdLogSeverity]; !ok {
+		stdLogSeverity = SeverityError
+	}
 	return Config{
-		Enabled:     enabled,
-		Endpoint:    strings.TrimRight(os.Getenv("LOGCORE_URL"), "/"),
-		APIKey:      os.Getenv("LOGCORE_KEY"),
-		Service:     os.Getenv("LOGCORE_SERVICE"),
-		Env:         env,
-		MinSeverity: minSeverity,
+		Enabled:        enabled,
+		Endpoint:       strings.TrimRight(os.Getenv("LOGCORE_URL"), "/"),
+		APIKey:         os.Getenv("LOGCORE_KEY"),
+		Service:        os.Getenv("LOGCORE_SERVICE"),
+		Env:            env,
+		MinSeverity:    minSeverity,
+		StdLogSeverity: stdLogSeverity,
 	}
 }
 
@@ -105,6 +114,9 @@ func New(cfg Config, opts Options) *Client {
 	if opts.Send == nil && (cfg.Endpoint == "" || cfg.APIKey == "") {
 		return nil
 	}
+	if _, ok := severityRank[cfg.StdLogSeverity]; !ok {
+		cfg.StdLogSeverity = SeverityError
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -133,11 +145,24 @@ func (c *Client) IngestURL() string {
 	return c.cfg.Endpoint + ingestPath
 }
 
+// Reports says whether an entry of this severity would be shipped, given the
+// configured floor. Callers use it to skip work — capturing a stack, building
+// a context map — for an entry that would be discarded anyway.
+func (c *Client) Reports(severity string) bool {
+	if c == nil {
+		return false
+	}
+	rank, ok := severityRank[severity]
+	return ok && rank >= c.minRank
+}
+
 // LogOptions carries everything an entry can hold beyond severity and message.
 // Err is optional: the bugs that hurt most raise nothing, and the app itself
 // is the only thing positioned to report them.
 type LogOptions struct {
-	Err         error
+	Err error
+	// Stack overrides the frames captured for Err. It is only ever sent as
+	// part of the `error` object, so it is ignored when Err is nil.
 	Stack       []Frame
 	Trace       string
 	Labels      map[string]string
@@ -331,6 +356,25 @@ func (c *Client) recordFailure() {
 		return
 	}
 	c.mu.Unlock()
+}
+
+// FlushSync drains the buffer on the calling goroutine, giving up after
+// timeout. It is the one place the transport is allowed to block: it exists
+// for the moment the process is about to die — log.Fatal, an unrecovered
+// panic — where the alternative is losing the entry that explains why.
+func (c *Client) FlushSync(timeout time.Duration) {
+	if c == nil {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.flush()
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+	}
 }
 
 // Close flushes what is buffered and stops the worker. It is the uninstall

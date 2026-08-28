@@ -88,7 +88,7 @@ func formatTimestamp(t time.Time) string {
 
 // insertID is derived, never random: the transport retries, so a batch the
 // server accepted but whose response was lost arrives twice, and only a
-// deterministic id lets logcore recognise the duplicate instead of counting
+// deterministic id lets logcore recognize the duplicate instead of counting
 // the error again.
 func insertID(timestamp, service, severity, message string, ctx map[string]any) string {
 	h := sha256.New()
