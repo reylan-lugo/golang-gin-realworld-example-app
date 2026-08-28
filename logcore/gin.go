@@ -102,7 +102,7 @@ func panicStack() []Frame {
 		f, more := frames.Next()
 		out = append(out, Frame{
 			Function: f.Function,
-			File:     f.File,
+			File:     repoPath(f.File, f.Function),
 			Line:     f.Line,
 			InApp:    isInApp(f.File, f.Function),
 		})

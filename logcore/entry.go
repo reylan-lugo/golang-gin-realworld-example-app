@@ -82,8 +82,13 @@ type envelope struct {
 	Entries       []Entry `json:"entries"`
 }
 
+// formatTimestamp keeps microsecond resolution. Milliseconds are not enough:
+// the insert id is derived from this value, so two genuine occurrences of the
+// same error inside one millisecond would hash identically and the second
+// would be discarded as a duplicate — losing count precisely during the burst
+// that matters most.
 func formatTimestamp(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05.000Z")
+	return t.UTC().Format("2006-01-02T15:04:05.000000Z")
 }
 
 // insertID is derived, never random: the transport retries, so a batch the
@@ -175,7 +180,7 @@ func captureStack(skip int) []Frame {
 		f, more := frames.Next()
 		out = append(out, Frame{
 			Function: f.Function,
-			File:     f.File,
+			File:     repoPath(f.File, f.Function),
 			Line:     f.Line,
 			InApp:    isInApp(f.File, f.Function),
 		})
@@ -189,6 +194,38 @@ func captureStack(skip int) []Frame {
 // modulePath is this repository's Go module, used to tell the project's own
 // code apart from its dependencies.
 const modulePath = "github.com/gothinkster/golang-gin-realworld-example-app"
+
+// repoPath trims a compile-time absolute path down to its path inside the
+// repository, which is the only form anything downstream can resolve. A frame
+// reported as /Users/someone/src/app/articles/models.go names no file that
+// exists on GitHub, so the code context for an issue silently comes back
+// empty; articles/models.go resolves.
+func repoPath(file, function string) string {
+	if file == "" {
+		return file
+	}
+	// The package path of an in-app frame shares its tail with the file's
+	// directory, so the module prefix locates where the repository starts.
+	if idx := strings.Index(file, moduleSuffix); idx >= 0 {
+		return strings.TrimPrefix(file[idx+len(moduleSuffix):], "/")
+	}
+	if strings.HasPrefix(function, modulePath) {
+		// A package directory that does not repeat the module name: fall back
+		// to the package's own path, which is relative by construction.
+		pkg := strings.TrimPrefix(function, modulePath)
+		if slash := strings.LastIndex(pkg, "/"); slash >= 0 {
+			if dir := strings.TrimPrefix(pkg[:slash], "/"); dir != "" {
+				if base := file[strings.LastIndex(file, "/")+1:]; base != "" {
+					return dir + "/" + base
+				}
+			}
+		}
+	}
+	return file
+}
+
+// moduleSuffix is the repository directory as it appears inside a build path.
+var moduleSuffix = modulePath[strings.LastIndex(modulePath, "/"):]
 
 func isInApp(file, function string) bool {
 	if strings.Contains(file, "/pkg/mod/") || strings.Contains(file, "/go/src/runtime/") {

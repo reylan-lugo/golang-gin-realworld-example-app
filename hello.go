@@ -36,6 +36,7 @@ func main() {
 	logger := logcore.New(logcore.ConfigFromEnv(), logcore.Options{})
 	defer logger.Close()
 	defer logcore.InstallStdLog(logger)()
+	defer logcore.InstallSignalFlush(logger)()
 
 	r := gin.Default()
 	r.Use(logger.Middleware())

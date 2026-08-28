@@ -71,7 +71,7 @@ func TestEmittedEntryMatchesTheHTTPWireShape(t *testing.T) {
 	// Assert
 	entry := firstEntry(t, <-captured)
 	for field, want := range map[string]string{
-		"timestamp": "2026-08-28T04:30:00.000Z",
+		"timestamp": "2026-08-28T04:30:00.000000Z",
 		"severity":  SeverityError,
 		"message":   "failed to persist article",
 		"service":   "golang-gin-realworld-example-app",
