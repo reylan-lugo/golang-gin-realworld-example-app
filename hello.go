@@ -8,6 +8,7 @@ import (
 
 	"github.com/gothinkster/golang-gin-realworld-example-app/articles"
 	"github.com/gothinkster/golang-gin-realworld-example-app/common"
+	"github.com/gothinkster/golang-gin-realworld-example-app/logcore"
 	"github.com/gothinkster/golang-gin-realworld-example-app/users"
 	"gorm.io/gorm"
 )
@@ -32,7 +33,11 @@ func main() {
 		defer sqlDB.Close()
 	}
 
+	logger := logcore.New(logcore.ConfigFromEnv(), logcore.Options{})
+	defer logger.Close()
+
 	r := gin.Default()
+	r.Use(logger.Middleware())
 
 	// Disable automatic redirect for trailing slashes
 	// This prevents POST body from being lost during redirects
