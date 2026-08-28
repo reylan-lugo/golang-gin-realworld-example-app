@@ -32,13 +32,17 @@ func TestConnectingDatabase(t *testing.T) {
 	sqlDB.Close()
 
 	// Test DB exceptions
-	os.Chmod(dbPath, 0000)
+	origDBPath := os.Getenv("DB_PATH")
+	defer os.Setenv("DB_PATH", origDBPath)
+	os.Setenv("DB_PATH", "/dev/null/invalid.db")
 	db = Init()
 	sqlDB, err = db.DB()
-	asserts.NoError(err, "Should get sql.DB")
-	asserts.Error(sqlDB.Ping(), "Db should not be able to ping")
-	sqlDB.Close()
-	os.Chmod(dbPath, 0644)
+	if err == nil && sqlDB != nil {
+		asserts.Error(sqlDB.Ping(), "Db should not be able to ping")
+		sqlDB.Close()
+	} else {
+		asserts.Error(err, "Db should not be able to connect")
+	}
 }
 
 func TestConnectingTestDatabase(t *testing.T) {
@@ -223,6 +227,12 @@ func TestNewValidatorError(t *testing.T) {
 			`{"errors":{"Username":"{key: alphanum}"}}`,
 			"invalid username of non alphanum and should return StatusUnprocessableEntity",
 		},
+		{
+			`{"username": 12345}`,
+			http.StatusUnprocessableEntity,
+			`{"errors":{"json":.*}}`,
+			"invalid json types should return StatusUnprocessableEntity without panic",
+		},
 	}
 
 	r := gin.Default()
@@ -252,6 +262,17 @@ func TestNewValidatorError(t *testing.T) {
 		asserts.Equal(testData.expectedCode, w.Code, "Response Status - "+testData.msg)
 		asserts.Regexp(testData.responseRegexg, w.Body.String(), "Response Content - "+testData.msg)
 	}
+}
+
+func TestNewValidatorErrorNonValidationError(t *testing.T) {
+	asserts := assert.New(t)
+
+	// Passing a non-validation error should not panic and return a CommonError containing the error
+	err := errors.New("syntax error: unexpected token")
+	res := NewValidatorError(err)
+	asserts.NotNil(res.Errors)
+	asserts.Contains(res.Errors, "json")
+	asserts.Equal("syntax error: unexpected token", res.Errors["json"])
 }
 
 func TestNewError(t *testing.T) {

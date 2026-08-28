@@ -159,6 +159,15 @@ var unauthRequestTests = []struct {
 		`{"errors":{"Email":"{key: email}"}}`,
 		"email invalid should return error",
 	},
+	{
+		func(req *http.Request) {},
+		"/users/",
+		"POST",
+		`{"user": "invalid_format"}`,
+		http.StatusUnprocessableEntity,
+		`{"errors":{"json":.*}}`,
+		"malformed json should return error without panicking",
+	},
 
 	//---------------------   Testing for user login   ---------------------
 	{

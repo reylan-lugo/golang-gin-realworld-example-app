@@ -68,7 +68,7 @@ func (article ArticleModel) favoritesCount() uint {
 	db := common.GetDB()
 	var count int64
 	db.Model(&FavoriteModel{}).Where(FavoriteModel{
-		FavoriteByID: article.ID,
+		FavoriteID: article.ID,
 	}).Count(&count)
 	return uint(count)
 }
