@@ -223,6 +223,12 @@ func TestNewValidatorError(t *testing.T) {
 			`{"errors":{"Username":"{key: alphanum}"}}`,
 			"invalid username of non alphanum and should return StatusUnprocessableEntity",
 		},
+		{
+			`{"username": 123}`,
+			http.StatusUnprocessableEntity,
+			`{"errors":{"json":`,
+			"invalid json types should return StatusUnprocessableEntity without panic",
+		},
 	}
 
 	r := gin.Default()
@@ -252,6 +258,14 @@ func TestNewValidatorError(t *testing.T) {
 		asserts.Equal(testData.expectedCode, w.Code, "Response Status - "+testData.msg)
 		asserts.Regexp(testData.responseRegexg, w.Body.String(), "Response Content - "+testData.msg)
 	}
+}
+
+func TestNewValidatorErrorNonValidationError(t *testing.T) {
+	asserts := assert.New(t)
+
+	err := errors.New("custom non-validation error")
+	res := NewValidatorError(err)
+	asserts.Equal("custom non-validation error", res.Errors["json"])
 }
 
 func TestNewError(t *testing.T) {
