@@ -366,3 +366,13 @@ func TestDatabaseWithCurrentDirectory(t *testing.T) {
 	sqlDB.Close()
 	os.Remove("test_simple.db")
 }
+
+func TestNewValidatorErrorWithNonValidationError(t *testing.T) {
+	asserts := assert.New(t)
+
+	customErr := errors.New("syntax error: invalid character")
+	commonErr := NewValidatorError(customErr)
+	asserts.NotNil(commonErr.Errors)
+	asserts.Equal("syntax error: invalid character", commonErr.Errors["json"])
+}
+

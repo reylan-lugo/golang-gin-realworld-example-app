@@ -543,6 +543,21 @@ func TestAuthMiddlewareNoToken(t *testing.T) {
 	asserts.Contains(w.Body.String(), `"user_id":0`, "User ID should be 0")
 }
 
+func TestUsersRegistrationMalformedJSON(t *testing.T) {
+	asserts := assert.New(t)
+
+	r := gin.New()
+	UsersRegister(r.Group("/users"))
+
+	req, _ := http.NewRequest("POST", "/users/", bytes.NewBufferString(`{invalid json`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	asserts.Equal(http.StatusUnprocessableEntity, w.Code, "Malformed JSON should return 422 Unprocessable Entity")
+	asserts.Contains(w.Body.String(), `"errors"`)
+}
+
 // This is a hack way to add test database for each case, as whole test will just share one database.
 // You can read TestWithoutAuth's comment to know how to not share database each case.
 func TestMain(m *testing.M) {
